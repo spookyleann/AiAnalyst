@@ -2,94 +2,97 @@ import tkinter as tk
 from tkinter import ttk
 import yfinance as yf
 import pandas as pd
-import pandas_ta as ta
+import numpy as np
 from simpleynews import SimpleYNews
 from textblob import TextBlob
-from stonksapi import StonksApi
 
-# ---------- DATA & ANALYSIS FUNCTIONS ----------
+# ---------------- TECHNICAL INDICATORS ---------------- #
+
+def compute_sma(df, window=20):
+    return df["Close"].rolling(window).mean()
+
+def compute_rsi(series, period=14):
+    delta = series.diff()
+    gain = delta.where(delta > 0, 0.0)
+    loss = -delta.where(delta < 0, 0.0)
+
+    avg_gain = gain.rolling(period).mean()
+    avg_loss = loss.rolling(period).mean()
+
+    rs = avg_gain / avg_loss
+    rsi = 100 - (100 / (1 + rs))
+    return rsi
+
+# ---------------- DATA FETCH ---------------- #
 
 def get_stock_data(symbol):
-    try:
-        ticker = yf.Ticker(symbol)
-        hist = ticker.history(period="6mo")
-        info = ticker.info
-        return hist, info
-    except Exception as e:
-        return None, {"Error": str(e)}
-
-def compute_indicators(df):
-    df["SMA20"] = ta.sma(df["Close"], length=20)
-    df["RSI"] = ta.rsi(df["Close"], length=14)
-    return df
+    ticker = yf.Ticker(symbol)
+    hist = ticker.history(period="6mo")
+    info = ticker.info
+    return hist, info
 
 def fetch_news(symbol):
     try:
-        news_provider = SimpleYNews.Ticker(symbol)
-        return news_provider.news
-    except Exception as e:
-        return [{"title": f"Error fetching news: {e}"}]
+        news = SimpleYNews.Ticker(symbol)
+        return news.news[:5]
+    except:
+        return []
 
-def sentiment_score(headlines):
+def analyze_sentiment(news):
     scores = []
-    for h in headlines:
-        text = h.get("title", "")
-        sentiment = TextBlob(text).sentiment.polarity
-        scores.append(sentiment)
-    return sum(scores) / len(scores) if scores else 0
+    for item in news:
+        polarity = TextBlob(item.get("title", "")).sentiment.polarity
+        scores.append(polarity)
+    return round(sum(scores) / len(scores), 3) if scores else 0
 
-# ---------- GUI ----------
+# ---------------- GUI ACTION ---------------- #
 
 def analyze():
     symbol = ticker_entry.get().upper()
-    output_text.delete("1.0", tk.END)
+    output.delete("1.0", tk.END)
 
-    # Stock
-    hist, info = get_stock_data(symbol)
-    if "Error" in info:
-        output_text.insert(tk.END, f"Error: {info['Error']}\n")
-        return
+    try:
+        df, info = get_stock_data(symbol)
 
-    output_text.insert(tk.END, f"=== {info.get('shortName', symbol)} ({symbol}) ===\n")
-    output_text.insert(tk.END, f"Current Price: {info.get('currentPrice', 'N/A')}\n")
-    output_text.insert(tk.END, f"Market Cap: {info.get('marketCap', 'N/A')}\n\n")
+        df["SMA20"] = compute_sma(df)
+        df["RSI"] = compute_rsi(df["Close"])
 
-    # Technical
-    df = compute_indicators(hist.copy())
-    output_text.insert(tk.END, "=== Technical Indicators ===\n")
-    output_text.insert(tk.END, f"Last Close: {df['Close'][-1]:.2f}\n")
-    output_text.insert(tk.END, f"20-Day SMA: {df['SMA20'][-1]:.2f}\n")
-    output_text.insert(tk.END, f"RSI: {df['RSI'][-1]:.2f}\n\n")
+        news = fetch_news(symbol)
+        sentiment = analyze_sentiment(news)
 
-    # News
-    output_text.insert(tk.END, "=== Latest News ===\n")
-    news_items = fetch_news(symbol)
-    for n in news_items[:5]:
-        title = n.get("title", "No title")
-        output_text.insert(tk.END, f"{title}\n")
+        output.insert(tk.END, f"📊 {info.get('shortName', symbol)} ({symbol})\n")
+        output.insert(tk.END, f"Price: ${info.get('currentPrice', 'N/A')}\n")
+        output.insert(tk.END, f"Market Cap: {info.get('marketCap', 'N/A')}\n\n")
 
-    # Sentiment
-    score = sentiment_score(news_items[:5])
-    output_text.insert(tk.END, f"\nAvg Sentiment Score: {score:.3f}\n")
+        output.insert(tk.END, "📈 Technicals\n")
+        output.insert(tk.END, f"SMA(20): {df['SMA20'].iloc[-1]:.2f}\n")
+        output.insert(tk.END, f"RSI(14): {df['RSI'].iloc[-1]:.2f}\n\n")
 
-# ---------- TKINTER SETUP ----------
+        output.insert(tk.END, "📰 News\n")
+        for item in news:
+            output.insert(tk.END, f"- {item.get('title')}\n")
+
+        output.insert(tk.END, f"\n🧠 Sentiment Score: {sentiment}")
+
+    except Exception as e:
+        output.insert(tk.END, f"Error: {e}")
+
+# ---------------- GUI SETUP ---------------- #
 
 root = tk.Tk()
-root.title("AI Company Analysis")
+root.title("AI Company Analyzer")
 root.geometry("800x600")
 
-frame = ttk.Frame(root, padding="10")
+frame = ttk.Frame(root, padding=10)
 frame.pack(fill=tk.BOTH, expand=True)
 
-ticker_label = ttk.Label(frame, text="Enter Ticker Symbol:")
-ticker_label.pack()
+ttk.Label(frame, text="Ticker Symbol").pack()
 ticker_entry = ttk.Entry(frame, width=15)
 ticker_entry.pack()
 
-analyze_btn = ttk.Button(frame, text="Analyze", command=analyze)
-analyze_btn.pack()
+ttk.Button(frame, text="Analyze", command=analyze).pack(pady=5)
 
-output_text = tk.Text(frame, wrap=tk.WORD)
-output_text.pack(fill=tk.BOTH, expand=True)
+output = tk.Text(frame, wrap=tk.WORD)
+output.pack(fill=tk.BOTH, expand=True)
 
 root.mainloop()
