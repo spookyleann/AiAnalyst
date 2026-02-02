@@ -3,4 +3,4 @@ pandas
 pandas-ta
 simpleynews
 textblob
-stonksapi
+PySimpleGUI
