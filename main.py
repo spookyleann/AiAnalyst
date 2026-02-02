@@ -154,17 +154,27 @@ def analyze():
 root = tk.Tk()
 root.title("AI Company Analyzer")
 root.geometry("900x650")
+root.minsize(800, 500)
 
-frame = ttk.Frame(root, padding=10)
-frame.pack(fill=tk.BOTH, expand=True)
+frame = ttk.Frame(root, padding=12)
+frame.grid(row=0, column=0, sticky="nsew")
 
-ttk.Label(frame, text="Ticker Symbol").pack()
-ticker_entry = ttk.Entry(frame, width=15)
-ticker_entry.pack()
+root.grid_rowconfigure(0, weight=1)
+root.grid_columnconfigure(0, weight=1)
 
-ttk.Button(frame, text="Analyze", command=analyze).pack(pady=6)
+# --- Input ---
+ttk.Label(frame, text="Ticker Symbol").grid(row=0, column=0, sticky="w")
+ticker_entry = ttk.Entry(frame, width=20)
+ticker_entry.grid(row=0, column=1, sticky="w", padx=5)
 
+analyze_btn = ttk.Button(frame, text="Analyze", command=analyze)
+analyze_btn.grid(row=0, column=2, padx=10)
+
+# --- Output ---
 output = tk.Text(frame, wrap=tk.WORD)
-output.pack(fill=tk.BOTH, expand=True)
+output.grid(row=1, column=0, columnspan=3, sticky="nsew", pady=10)
+
+frame.grid_rowconfigure(1, weight=1)
+frame.grid_columnconfigure(2, weight=1)
 
 root.mainloop()
